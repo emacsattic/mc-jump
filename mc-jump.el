@@ -65,7 +65,8 @@
   (when (and (not mc-jump-command-p)
              mc-jump-original-binding)
     (local-set-key (car mc-jump-original-binding)
-                   (cdr mc-jump-original-binding))))
+                   (cdr mc-jump-original-binding))
+    (setq mc-jump-original-binding nil)))
 
 (add-hook 'post-command-hook 'mc-jump-post-command-function)
 (add-hook 'pre-command-hook 'mc-jump-pre-command-function)
@@ -75,22 +76,24 @@
 (defun mc-jump-char ()
   (interactive)
   (let ((chr (char-to-string (read-char "goto-char ? "))))
-    (setq this-original-command `(lambda ()
-                                   (interactive)
-                                   (let ((pos (save-excursion
-                                                (skip-chars-forward
-                                                 ,(concat "^" chr (upcase chr)))
-                                                (point))))
-                                     (if (= pos (point-max))
-                                         (error "not found")
-                                       (setq mc-jump-command-p t)
-                                       (goto-char pos)))
-                                   (forward-char 1))
-          ;; let multiple-cursors forget his "note"
-          mc--this-command this-original-command)
-    ;; store original key definition
+    (setq
+     ;; generate a command that moves cursor to the char
+     ;; and treat it as if this command is "the" command
+     this-original-command `(lambda ()
+                              (interactive)
+                              (let ((pos (save-excursion
+                                           (skip-chars-forward
+                                            ,(concat "^" chr (upcase chr)))
+                                           (point))))
+                                (if (= pos (point-max))
+                                    (error "not found")
+                                  (setq mc-jump-command-p t)
+                                  (goto-char (1+ pos)))))
+     ;; let multiple-cursors forget his "note"
+     mc--this-command this-original-command)
+    ;; store the original key definition
     (setq mc-jump-original-binding (cons chr (key-binding chr)))
-    ;; and override it with mc-jump-char
+    ;; and override it with "the" command
     (local-set-key chr this-original-command)
     ;; then call it
     (call-interactively this-original-command)))
